@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "/usr/local/bin/node",
+      "args": [
+        "/home/trten/.local/node_modules/@supabase/mcp-server-supabase/dist/index.js"
+      ],
+      "env": {
+        "SUPABASE_URL": "https://mrkagdenrvwgjbzatdfx.supabase.co",
+        "SUPABASE_SERVICE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ya2FnZGVucnZ3Z2piemF0ZGZ4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODcyMTU4MCwiZXhwIjoyMDY0Mjk3NTgwfQ.tDFTlKlQV8FylaDOZcO6PWwaecikFwlTpjznarXfwDg"
+      }
+    }
+  }
+}
