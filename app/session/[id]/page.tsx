@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
+
+// Dynamic import for LiveKit component
+const LiveKitRoom = dynamic(
+  () => import('@/components/video/LiveKitRoom'),
+  { ssr: false }
+)
 
 interface SessionData {
   id: string
@@ -10,6 +17,8 @@ interface SessionData {
   streamer_id: string
   status: string
   started_at: string
+  room_name: string | null
+  stream_started_at: string | null
   bounty: {
     id: string
     title: string
@@ -25,6 +34,8 @@ export default function SessionPage({ params }: { params: { id: string } }) {
   const [error, setError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [livekitToken, setLivekitToken] = useState<string | null>(null)
+  const [showVideo, setShowVideo] = useState(false)
   
   const router = useRouter()
   const supabase = createClient()
@@ -52,10 +63,38 @@ export default function SessionPage({ params }: { params: { id: string } }) {
 
       if (error) throw error
       setSession(data)
+
+      // Get LiveKit token if session is active
+      if (data.status === 'active') {
+        await fetchLiveKitToken()
+      }
     } catch (err: any) {
       setError(err.message)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const fetchLiveKitToken = async () => {
+    try {
+      const response = await fetch('/api/livekit/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sessionId: params.id }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to get streaming token')
+      }
+
+      const { token } = await response.json()
+      setLivekitToken(token)
+      setShowVideo(true)
+    } catch (err: any) {
+      console.error('Error fetching LiveKit token:', err)
+      setError('Failed to initialize video stream')
     }
   }
 
@@ -64,6 +103,23 @@ export default function SessionPage({ params }: { params: { id: string } }) {
     setError(null)
 
     try {
+      // Log stream end if streaming
+      if (session?.stream_started_at && !session.stream_ended_at) {
+        await supabase
+          .from('sessions')
+          .update({ stream_ended_at: new Date().toISOString() })
+          .eq('id', params.id)
+
+        await supabase
+          .from('stream_events')
+          .insert({
+            session_id: params.id,
+            event_type: 'stream_ended',
+            participant_id: currentUserId,
+            metadata: { approved }
+          })
+      }
+
       const { data, error } = await supabase.rpc('finish_session', {
         p_session_id: params.id,
         p_approved: approved
@@ -81,6 +137,35 @@ export default function SessionPage({ params }: { params: { id: string } }) {
     } finally {
       setIsProcessing(false)
     }
+  }
+
+  const handleStreamStart = async () => {
+    console.log('Stream started')
+    await supabase
+      .from('stream_events')
+      .insert({
+        session_id: params.id,
+        event_type: 'stream_active',
+        participant_id: currentUserId,
+        metadata: { timestamp: new Date().toISOString() }
+      })
+  }
+
+  const handleStreamEnd = async () => {
+    console.log('Stream ended')
+    await supabase
+      .from('stream_events')
+      .insert({
+        session_id: params.id,
+        event_type: 'stream_inactive',
+        participant_id: currentUserId,
+        metadata: { timestamp: new Date().toISOString() }
+      })
+  }
+
+  const handleStreamError = (error: Error) => {
+    console.error('Stream error:', error)
+    setError(`Stream error: ${error.message}`)
   }
 
   if (isLoading) {
@@ -104,39 +189,81 @@ export default function SessionPage({ params }: { params: { id: string } }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-white shadow rounded-lg p-6">
-          <h1 className="text-2xl font-bold mb-6">Streaming Session</h1>
-          
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold">{session.bounty.title}</h2>
-              {session.bounty.description && (
-                <p className="text-gray-600 mt-1">{session.bounty.description}</p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gray-50 p-4 rounded">
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="bg-white shadow rounded-lg">
+          <div className="p-6 border-b">
+            <h1 className="text-2xl font-bold">{session.bounty.title}</h1>
+            {session.bounty.description && (
+              <p className="text-gray-600 mt-1">{session.bounty.description}</p>
+            )}
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+              <div className="bg-gray-50 p-3 rounded">
                 <p className="text-sm text-gray-500">Bounty Amount</p>
-                <p className="text-xl font-bold text-indigo-600">{session.bounty.amount} points</p>
+                <p className="text-lg font-bold text-indigo-600">{session.bounty.amount} points</p>
               </div>
-              <div className="bg-gray-50 p-4 rounded">
+              <div className="bg-gray-50 p-3 rounded">
                 <p className="text-sm text-gray-500">Session Status</p>
-                <p className="text-xl font-bold capitalize">{session.status}</p>
+                <p className="text-lg font-bold capitalize">{session.status}</p>
+              </div>
+              <div className="bg-gray-50 p-3 rounded">
+                <p className="text-sm text-gray-500">Stream Status</p>
+                <p className="text-lg font-bold">
+                  {session.stream_started_at ? 'Live' : 'Not Started'}
+                </p>
+              </div>
+              <div className="bg-gray-50 p-3 rounded">
+                <p className="text-sm text-gray-500">Your Role</p>
+                <p className="text-lg font-bold">
+                  {isStreamer ? 'Streamer' : isCreator ? 'Requester' : 'Viewer'}
+                </p>
               </div>
             </div>
+          </div>
 
-            {/* Placeholder for video stream */}
-            <div className="bg-gray-900 rounded-lg aspect-video flex items-center justify-center">
-              <div className="text-center text-white">
-                <p className="text-xl mb-2">📹 Live Stream Placeholder</p>
-                <p className="text-sm text-gray-400">Video streaming will be implemented in Phase 2</p>
+          {/* Video Stream Area */}
+          <div className="relative bg-black" style={{ aspectRatio: '16/9' }}>
+            {showVideo && livekitToken && session.room_name ? (
+              <LiveKitRoom
+                roomName={session.room_name}
+                token={livekitToken}
+                isStreamer={isStreamer}
+                onError={handleStreamError}
+                onStreamStart={handleStreamStart}
+                onStreamEnd={handleStreamEnd}
+              />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-white">
+                <div className="text-center">
+                  <p className="text-xl mb-2">📹 Live Stream</p>
+                  {session.status === 'active' ? (
+                    isStreamer ? (
+                      <button
+                        onClick={fetchLiveKitToken}
+                        className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                      >
+                        Start Streaming
+                      </button>
+                    ) : (
+                      <button
+                        onClick={fetchLiveKitToken}
+                        className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      >
+                        Join Stream
+                      </button>
+                    )
+                  ) : (
+                    <p className="text-sm text-gray-400">Session is not active</p>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
+          </div>
 
+          {/* Controls and Info */}
+          <div className="p-6">
             {error && (
-              <div className="text-red-600 text-sm">{error}</div>
+              <div className="mb-4 p-4 bg-red-50 text-red-600 rounded">{error}</div>
             )}
 
             {/* Controls for session creator */}
@@ -168,7 +295,8 @@ export default function SessionPage({ params }: { params: { id: string } }) {
             {isStreamer && session.status === 'active' && (
               <div className="bg-blue-50 p-4 rounded">
                 <p className="text-blue-900">
-                  You are currently streaming for this bounty. The bounty creator will review and approve/reject when complete.
+                  You are the streamer for this bounty. Start your stream above and complete the requested task. 
+                  The requester will review and approve/reject when complete.
                 </p>
               </div>
             )}
@@ -178,6 +306,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
               <div className="bg-green-50 p-4 rounded">
                 <p className="text-green-900">
                   This session has been completed.
+                  {session.approved && ' The bounty was approved and points were transferred.'}
                 </p>
               </div>
             )}

@@ -29,7 +29,7 @@ export default async function DashboardPage() {
       *,
       bounty:bounties(*)
     `)
-    .eq('streamer_id', user.id)
+    .or(`streamer_id.eq.${user.id},bounty.creator_id.eq.${user.id}`)
     .order('created_at', { ascending: false })
 
   return (
@@ -65,22 +65,39 @@ export default async function DashboardPage() {
               </Link>
             </div>
             <div className="space-y-3">
-              {myBounties?.map((bounty) => (
-                <div key={bounty.id} className="border rounded p-3">
-                  <h3 className="font-semibold">{bounty.title}</h3>
-                  <div className="flex justify-between text-sm text-gray-600 mt-1">
-                    <span>{bounty.amount} points</span>
-                    <span className={`capitalize ${
-                      bounty.status === 'open' ? 'text-green-600' :
-                      bounty.status === 'accepted' ? 'text-yellow-600' :
-                      bounty.status === 'completed' ? 'text-blue-600' :
-                      'text-gray-600'
-                    }`}>
-                      {bounty.status}
-                    </span>
+              {myBounties?.map((bounty) => {
+                // Get active session for this bounty
+                const activeSession = mySessions?.find(
+                  s => s.bounty_id === bounty.id && s.status === 'active'
+                )
+                
+                return (
+                  <div key={bounty.id} className="border rounded p-3">
+                    <h3 className="font-semibold">{bounty.title}</h3>
+                    <div className="flex justify-between items-center text-sm mt-1">
+                      <span className="text-gray-600">{bounty.amount} points</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`capitalize ${
+                          bounty.status === 'open' ? 'text-green-600' :
+                          bounty.status === 'accepted' ? 'text-yellow-600' :
+                          bounty.status === 'completed' ? 'text-blue-600' :
+                          'text-gray-600'
+                        }`}>
+                          {bounty.status}
+                        </span>
+                        {activeSession && (
+                          <Link
+                            href={`/session/${activeSession.id}`}
+                            className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                          >
+                            Watch Live
+                          </Link>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
               {(!myBounties || myBounties.length === 0) && (
                 <p className="text-gray-500">No bounties created yet</p>
               )}
