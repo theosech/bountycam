@@ -8,7 +8,7 @@ export function useSessionTimeout(
   timeoutMinutes: number = 30
 ) {
   const router = useRouter()
-  const timeoutRef = useRef<NodeJS.Timeout>()
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastActivityRef = useRef<Date>(new Date())
   const supabase = createClient()
 

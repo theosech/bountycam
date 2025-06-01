@@ -10,12 +10,16 @@
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@livekit/components-react": "^2.9.9",
+    "@livekit/components-styles": "^1.1.6",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.10",
     "@types/leaflet": "^1.9.14",
     "autoprefixer": "^10.4.21",
     "leaflet": "^1.9.4",
+    "livekit-client": "^2.13.3",
+    "livekit-server-sdk": "^2.13.0",
     "next": "15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

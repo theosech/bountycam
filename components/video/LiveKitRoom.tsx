@@ -5,15 +5,14 @@ import {
   LiveKitRoom,
   VideoConference,
   RoomAudioRenderer,
-  ConnectionState,
   useConnectionState,
   useLocalParticipant,
   useRemoteParticipants,
   VideoTrack,
   AudioTrack,
   useTracks,
-  Track,
 } from '@livekit/components-react'
+import { Track, ConnectionState } from 'livekit-client'
 import '@livekit/components-styles'
 
 interface LiveKitRoomProps {

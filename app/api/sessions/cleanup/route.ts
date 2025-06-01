@@ -62,12 +62,22 @@ export async function POST(request: Request) {
         .eq('id', session.bounty_id)
 
       // Refund points to streamer
-      await supabase
+      // First get the current points balance
+      const { data: user } = await supabase
         .from('users')
-        .update({ 
-          points_balance: supabase.raw('points_balance + ?', [session.bounty.amount])
-        })
+        .select('points_balance')
         .eq('id', session.streamer_id)
+        .single()
+      
+      // Then update with the new balance
+      if (user) {
+        await supabase
+          .from('users')
+          .update({ 
+            points_balance: user.points_balance + session.bounty.amount
+          })
+          .eq('id', session.streamer_id)
+      }
     }
 
     return NextResponse.json({ 
